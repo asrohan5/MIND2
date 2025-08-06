@@ -53,3 +53,28 @@ class MINDDataParser:
 
         labeled_df = pd.DataFrame(records)
         return labeled_df
+
+    def parse_news(self,news_path):
+        columns = [
+        "news_id", "category", "subcategory", 
+        "title", "abstract", 
+        "url", "title_entities", "abstract_entities"
+        ]
+
+        news_df = pd.read_csv(news_path, sep="\t", header=None, names=columns, encoding='utf-8')
+        return news_df
+    
+
+    
+    def merge_clicks_with_news(self, labeled_df, news_df):
+    
+        merged_df = pd.merge(
+            labeled_df,
+            news_df,
+            how="left",
+            left_on="candidate_news",
+            right_on="news_id"
+        )
+        return merged_df
+
+
