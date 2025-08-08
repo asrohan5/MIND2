@@ -1,0 +1,78 @@
+Steps completed so far (LOG REG)
+
+1. Project creation & repo setup
+    Created project MIND-1 in VS Code, initialized git and pushed to GitHub.
+    Created venv, README.md, requirements.txt, .gitignore.
+    Directory layout established: src/, artifacts/, data/, notebooks/, logs/.
+
+2. Core utilities & components added
+    src/components/logger.py — logging utility used across pipeline.
+    src/components/exception.py — custom exception handling.
+
+3. Data download
+    Implemented src/components/data_downloader.py and a small main to run it.
+    Downloaded and extracted MIND-small into artifacts/raw/.
+    Files now in artifacts/raw/:
+        behaviors.tsv, news.tsv, entity_embedding.vec, relation_embedding.vec.
+
+4. Parsing raw files
+    Implemented src/components/data_parser.py with functions:
+        parse_news() → reads news.tsv into news_df.
+        parse_behaviors() → reads behaviors.tsv into behaviors_df.
+        generate_labeled_click_data() → expands impressions into per-article rows.
+        merge_clicks_with_news() → left-joins impressions with news metadata.
+    Created and ran run_data_preprocessing.py (project root) to orchestrate parsing + merge.
+    Key intermediate artifact: artifacts/processed/merged_click_data.csv.
+    Full expanded dataset shape (after merge on full data): (5,843,444 rows, 13 cols) — i.e., ~5.8M impression-level records (from behaviors.tsv) merged with news metadata.
+
+
+5. Safe-sample workflow for development
+    To keep memory use reasonable, we worked on a 10,000-row subset for feature engineering and model prototyping.
+    Saved cleaned subset: artifacts/processed/cleaned_sample.csv (10,000 × 13).
+
+6. Text feature engineering — Title TF-IDF
+    Created src/components/title_vectorizer.py (a TitleVectorizer class wrapping TfidfVectorizer).
+    Updated run_feature_engineering.py to:
+        Load cleaned_sample.csv
+        Fill missing title/category/subcategory
+        Fit-transform title → TF-IDF
+    Saved TF-IDF artifacts:
+        artifacts/processed/title_tfidf.npz — sparse TF-IDF matrix (shape: 10000 × 5000).
+        artifacts/processed/tfidf_features.csv — feature (ngram) names.
+
+7. Categorical encoding
+    Implemented src/components/category_encoder.py (class CategoryEncoder) to OneHotEncode:
+        category, subcategory (saved encoders and encoded CSV).
+    Running fit_transform on cleaned sample generated:
+        artifacts/processed/encoded_categories.csv
+        Saved encoder objects (joblib) under artifacts/processed/ (and later a copy under artifacts/models/).
+
+8. Combined features into final training matrix (sample)
+    Combined sparse TF-IDF + category & subcategory one-hot into one sparse matrix:
+        artifacts/features/full_features.npz — shape (10000, 5169) (5000 TF-IDF + 169 cat/subcat).
+        artifacts/features/labels.npy — labels (10000,).
+    This was done to keep processing memory-efficient (used scipy.sparse.hstack).
+
+9. Baseline model training
+    Created run_model_training.py (project root) that:
+    Loads cleaned CSV and TF-IDF (NPZ) & encodes categories on the fly.
+    Stacks TF-IDF + category features using hstack.
+    Splits (80/20) into train/test (stratified).
+    Trains Logistic Regression (sparse-friendly).
+    Evaluates Accuracy and AUC.
+
+10. Training results (sample 10k):
+    Final feature matrix: (10000, 5169)
+    Train/test sizes: (8000, 5169) / (2000, 5169)
+    Accuracy: 0.9595
+    AUC: 0.6605
+
+11. Saved model & encoder:
+    artifacts/models/logreg_tfidf_cat.pkl
+    artifacts/models/category_encoder.pkl (or joblib in artifacts/processed/ depending on step)
+
+12. Inference pipeline
+    Implemented run_inference.py to:
+    Load trained model + preprocessors (TF-IDF vectorizer and category encoder).
+    Preprocess new CSV(s) identically (fill NA → TF-IDF transform → encode categories → stack).
+    Predict labels and probabilities; save predictions to artifacts/predictions/.
