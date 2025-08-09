@@ -1,0 +1,2 @@
+model,hyperparameters,accuracy,auc,date,notes
+Pipeline(LogisticRegression),"{'clf__C': 1, 'clf__solver': 'liblinear'}",0.7645,0.6119,2025-08-09 15:35:26.413701,Pipeline with TF-IDF + OneHot encoding + tuned Logistic Regression
