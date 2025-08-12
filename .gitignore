@@ -10,6 +10,8 @@ __pycache__/
 artifacts/processed
 artifacts/raw
 artifacts/features/
+Results1
+Results1.txt
 
 
 # Distribution / packaging

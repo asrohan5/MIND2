@@ -16,7 +16,6 @@ from xgboost import XGBClassifier
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import accuracy_score, roc_auc_score, classification_report
 
-
 MODEL_PARAMS = {
     "logreg": (
         LogisticRegression(max_iter=1000, random_state=42),
@@ -55,25 +54,24 @@ MODEL_PARAMS = {
     )
 }
 
-
-
-def main(model_name):
+def main(model_name, sample_fraction):
     if model_name not in MODEL_PARAMS:
         raise ValueError(f"Invalid model name '{model_name}'. Choose from: {list(MODEL_PARAMS.keys())}")
-
 
     artifacts_dir = "D:/Projects/MIND2/artifacts"
     models_dir = os.path.join(artifacts_dir, "models")
     os.makedirs(models_dir, exist_ok=True)
     logs_path = os.path.join(artifacts_dir, "experiments_log.csv")
 
-
-    print("Loading dataset")
+    print("Loading dataset...")
     df = pd.read_csv("D:/Projects/MIND2/artifacts/processed/merged_click_data.csv")
+
+    if sample_fraction < 1.0:
+        df = df.sample(frac=sample_fraction, random_state=42)
+        print(f"Using a sample: {len(df)} rows")
 
     X = df[["title", "category", "subcategory"]]
     y = df["label"]
-
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
@@ -89,17 +87,14 @@ def main(model_name):
         ]
     )
 
-
     model, param_grid = MODEL_PARAMS[model_name]
-
 
     pipeline = Pipeline(steps=[
         ("preprocessor", preprocessor),
         ("clf", model)
     ])
 
-
-    print(f"Tuning {model_name}")
+    print(f"Tuning {model_name}...")
     grid_search = GridSearchCV(
         pipeline,
         param_grid,
@@ -110,10 +105,8 @@ def main(model_name):
     )
     grid_search.fit(X_train, y_train)
 
-
     best_model = grid_search.best_estimator_
     print(f"Best Parameters: {grid_search.best_params_}")
-
 
     y_pred = best_model.predict(X_test)
     y_proba = best_model.predict_proba(X_test)[:, 1] if hasattr(best_model, "predict_proba") else np.zeros(len(y_pred))
@@ -125,16 +118,15 @@ def main(model_name):
     print(f"AUC: {auc:.4f}" if auc else "AUC: Not applicable")
     print(classification_report(y_test, y_pred))
 
-
     model_path = os.path.join(models_dir, f"pipeline_{model_name}_tuned.pkl")
     with open(model_path, "wb") as f:
         pickle.dump(best_model, f)
     print(f"Model saved to {model_path}")
 
-
     log_data = {
         "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "model": model_name,
+        "sample_fraction": sample_fraction,
         "best_params": str(grid_search.best_params_),
         "accuracy": accuracy,
         "auc": auc
@@ -148,5 +140,6 @@ def main(model_name):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run pipeline with chosen model")
     parser.add_argument("--model", type=str, required=True, help="Model to train: logreg, rf, svm, xgb, nb")
+    parser.add_argument("--sample_fraction", type=float, default=0.1, help="Fraction of data to use (0 < f ≤ 1)")
     args = parser.parse_args()
-    main(args.model)
+    main(args.model, args.sample_fraction)
